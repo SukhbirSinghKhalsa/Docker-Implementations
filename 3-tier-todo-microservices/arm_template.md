@@ -1,18 +1,20 @@
 ### ARM Template Reference
 ``` bash
 {
-    "$schema": "http://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "apiVersion": {
-            "type": "string",
-            "defaultValue": "2021-05-01"
-        },
         "administratorLogin": {
-            "type": "string"
+            "type": "string",
+            "defaultValue": ""
         },
         "administratorLoginPassword": {
-            "type": "securestring"
+            "type": "securestring",
+            "defaultValue": ""
+        },
+        "administrators": {
+            "type": "object",
+            "defaultValue": {}
         },
         "location": {
             "type": "string"
@@ -20,244 +22,180 @@
         "serverName": {
             "type": "string"
         },
-        "serverEdition": {
-            "type": "string"
-        },
-        "vCores": {
-            "type": "int",
-            "defaultValue": 4
-        },
-        "storageSizeGB": {
-            "type": "int"
-        },
-        "haEnabled": {
-            "type": "string",
-            "defaultValue": "Disabled"
-        },
-        "availabilityZone": {
-            "type": "string",
-            "defaultValue": ""
-        },
-        "standbyAvailabilityZone": {
-            "type": "string"
-        },
-        "version": {
-            "type": "string"
-        },
-        "tags": {
-            "type": "object",
-            "defaultValue": {}
-        },
-        "firewallRules": {
-            "type": "object",
-            "defaultValue": {}
-        },
-        "backupRetentionDays": {
-            "type": "int"
-        },
-        "geoRedundantBackup": {
-            "type": "string"
-        },
-        "vmName": {
-            "type": "string",
-            "defaultValue": "Standard_B1ms"
-        },
-        "storageIops": {
-            "type": "int"
-        },
-        "storageAutogrow": {
-            "type": "string",
-            "defaultValue": "Enabled"
-        },
-        "autoIoScaling": {
-            "type": "string",
-            "defaultValue": "Disabled"
-        },
-        "identityData": {
-            "type": "object",
-            "defaultValue": {}
-        },
-        "dataEncryptionData": {
-            "type": "object",
-            "defaultValue": {}
-        },
-        "serverParameters": {
-            "type": "array",
-            "defaultValue": []
-        },
-        "aadEnabled": {
+        "enableADS": {
             "type": "bool",
             "defaultValue": false
         },
-        "aadData": {
+        "useVAManagedIdentity": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "To enable vulnerability assessments, the user deploying this template must have an administrator or owner permissions."
+            }
+        },
+        "vaStoragelessEnabled": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "Flag for enabling vulnerability assessments with express configuration (storage less), the user deploying this template must have administrator or owner permissions."
+            }
+        },
+        "publicNetworkAccess": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "minimalTlsVersion": {
+            "type": "string",
+            "defaultValue": ""
+        },
+        "allowAzureIps": {
+            "type": "bool",
+            "defaultValue": true
+        },
+        "enableVA": {
+            "type": "bool",
+            "defaultValue": false
+        },
+        "serverTags": {
             "type": "object",
             "defaultValue": {}
         },
-        "guid": {
-            "type": "string",
-            "defaultValue": "[newGuid()]"
-        },
-        "network": {
+        "identity": {
             "type": "object",
             "defaultValue": {}
         },
-        "firewallRulesAPIVersion": {
+        "primaryUserAssignedIdentityId": {
             "type": "string",
-            "defaultValue": "2022-01-01"
+            "defaultValue": ""
         },
-        "acceleratedLogs": {
+        "federatedClientId": {
             "type": "string",
-            "defaultValue": "Disabled"
+            "defaultValue": ""
         },
-        "databasePort": {
-            "type": "int",
-            "defaultValue": 3306
-        },
-        "lowerCaseTableNames": {
-            "type": "int",
-            "defaultValue": 1
+        "servicePrincipal": {
+            "type": "object",
+            "defaultValue": {}
         }
     },
     "variables": {
-        "api": "[parameters('apiVersion')]",
-        "firewallRules": "[parameters('firewallRules').rules]",
-        "serverParameters": "[parameters('serverParameters')]"
+        "subscriptionId": "[subscription().subscriptionId]",
+        "resourceGroupName": "[resourceGroup().name]",
+        "uniqueStorage": "[uniqueString(variables('subscriptionId'), variables('resourceGroupName'), parameters('location'))]",
+        "storageName": "[tolower(concat('sqlva', variables('uniqueStorage')))]",
+        "uniqueRoleGuid": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), variables('storageBlobContributor'), resourceId('Microsoft.Sql/servers', parameters('serverName')))]",
+        "StorageBlobContributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]"
     },
     "resources": [
         {
-            "apiVersion": "[variables('api')]",
+            "condition": "[parameters('enableVA')]",
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-04-01",
+            "name": "[variables('storageName')]",
             "location": "[parameters('location')]",
-            "name": "[parameters('serverName')]",
-            "identity": "[if(empty(parameters('identityData')), json('null'), parameters('identityData'))]",
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "kind": "StorageV2",
             "properties": {
-                "createMode": "Default",
-                "version": "[parameters('version')]",
+                "minimumTlsVersion": "TLS1_2",
+                "supportsHttpsTrafficOnly": "true",
+                "allowBlobPublicAccess": "false"
+            },
+            "resources": [
+                {
+                    "condition": "[parameters('useVAManagedIdentity')]",
+                    "type": "Microsoft.Storage/storageAccounts/providers/roleAssignments",
+                    "apiVersion": "2018-09-01-preview",
+                    "name": "[concat(variables('storageName'), '/Microsoft.Authorization/', variables('uniqueRoleGuid') )]",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]",
+                        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+                    ],
+                    "properties": {
+                        "roleDefinitionId": "[variables('StorageBlobContributor')]",
+                        "principalId": "[reference(resourceId('Microsoft.Sql/servers', parameters('serverName')), '2018-06-01-preview', 'Full').identity.principalId]",
+                        "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]",
+                        "principalType": "ServicePrincipal"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "Microsoft.Sql/servers",
+            "apiVersion": "2024-11-01-preview",
+            "name": "[parameters('serverName')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "version": "12.0",
+                "minimalTlsVersion": "[parameters('minimalTlsVersion')]",
+                "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
                 "administratorLogin": "[parameters('administratorLogin')]",
                 "administratorLoginPassword": "[parameters('administratorLoginPassword')]",
-                "Network": "[if(empty(parameters('network')), json('null'), parameters('network'))]",
-                "Storage": {
-                    "StorageSizeGB": "[parameters('storageSizeGB')]",
-                    "Iops": "[parameters('storageIops')]",
-                    "Autogrow": "[parameters('storageAutogrow')]",
-                    "AutoIoScaling": "[parameters('autoIoScaling')]",
-                    "LogOnDisk": "[parameters('acceleratedLogs')]"
+                "primaryUserAssignedIdentityId": "[parameters('primaryUserAssignedIdentityId')]",
+                "federatedClientId": "[parameters('federatedClientId')]",
+                "servicePrincipal": "[parameters('servicePrincipal')]"
+            },
+            "identity": "[parameters('identity')]",
+            "tags": "[parameters('serverTags')]",
+            "resources": [
+                {
+                    "condition": "[parameters('allowAzureIPs')]",
+                    "type": "firewallRules",
+                    "apiVersion": "2021-11-01",
+                    "name": "AllowAllWindowsAzureIps",
+                    "location": "[parameters('location')]",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]"
+                    ],
+                    "properties": {
+                        "endIpAddress": "0.0.0.0",
+                        "startIpAddress": "0.0.0.0"
+                    }
                 },
-                "Backup": {
-                    "backupRetentionDays": "[parameters('backupRetentionDays')]",
-                    "geoRedundantBackup": "[parameters('geoRedundantBackup')]"
+                {
+                    "condition": "[parameters('enableADS')]",
+                    "type": "advancedThreatProtectionSettings",
+                    "apiVersion": "2021-11-01-preview",
+                    "name": "Default",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]"
+                    ],
+                    "properties": {
+                        "state": "Enabled"
+                    }
                 },
-                "availabilityZone": "[parameters('availabilityZone')]",
-                "highAvailability": {
-                    "mode": "[parameters('haEnabled')]",
-                    "standbyAvailabilityZone": "[parameters('standbyAvailabilityZone')]"
+                {
+                    "condition": "[parameters('enableVA')]",
+                    "type": "vulnerabilityAssessments",
+                    "apiVersion": "2018-06-01-preview",
+                    "name": "Default",
+                    "dependsOn": [
+                        "[concat('Microsoft.Sql/servers/', parameters('serverName'))]",
+                        "[concat('Microsoft.Storage/storageAccounts/', variables('storageName'))]",
+                        "[concat('Microsoft.Sql/servers/', parameters('serverName'), '/advancedThreatProtectionSettings/Default')]"
+                    ],
+                    "properties": {
+                        "storageContainerPath": "[if(parameters('enableVA'), concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))).primaryEndpoints.blob, 'vulnerability-assessment'), '')]",
+                        "storageAccountAccessKey": "[if(and(parameters('enableVA'),not(parameters('useVAManagedIdentity'))), listKeys(variables('storageName'), '2018-02-01').keys[0].value, '')]",
+                        "recurringScans": {
+                            "isEnabled": true,
+                            "emailSubscriptionAdmins": false
+                        }
+                    }
                 },
-                "dataencryption": "[if(empty(parameters('dataEncryptionData')), json('null'), parameters('dataEncryptionData'))]",
-                "databasePort": "[parameters('databasePort')]",
-                "lowerCaseTableNames": "[parameters('lowerCaseTableNames')]"
-            },
-            "sku": {
-                "name": "[parameters('vmName')]",
-                "tier": "[parameters('serverEdition')]",
-                "capacity": "[parameters('vCores')]"
-            },
-            "tags": "[parameters('tags')]",
-            "type": "Microsoft.DBforMySQL/flexibleServers"
-        },
-        {
-            "condition": "[greater(length(variables('firewallRules')), 0)]",
-            "type": "Microsoft.Resources/deployments",
-            "apiVersion": "2019-08-01",
-            "name": "[concat('firewallRules-', parameters('guid'), '-', copyIndex())]",
-            "copy": {
-                "count": "[if(greater(length(variables('firewallRules')), 0), length(variables('firewallRules')), 1)]",
-                "mode": "Serial",
-                "name": "firewallRulesIterator"
-            },
-            "dependsOn": [
-                "[concat('Microsoft.DBforMySQL/flexibleServers/', parameters('serverName'))]",
-                "[concat('Microsoft.Resources/deployments/addAdmins-', parameters('guid'))]"
-            ],
-            "properties": {
-                "mode": "Incremental",
-                "template": {
-                    "$schema": "http://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-                    "contentVersion": "1.0.0.0",
-                    "resources": [
-                        {
-                            "type": "Microsoft.DBforMySQL/flexibleServers/firewallRules",
-                            "name": "[concat(parameters('serverName'),'/',variables('firewallRules')[copyIndex()].name)]",
-                            "apiVersion": "[parameters('firewallRulesAPIVersion')]",
-                            "properties": {
-                                "StartIpAddress": "[variables('firewallRules')[copyIndex()].startIPAddress]",
-                                "EndIpAddress": "[variables('firewallRules')[copyIndex()].endIPAddress]"
-                            }
-                        }
-                    ]
+                {
+                    "condition": "[parameters('vaStoragelessEnabled')]",
+                    "type": "sqlVulnerabilityAssessments",
+                    "apiVersion": "2022-02-01-preview",
+                    "name": "Default",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]"
+                    ],
+                    "properties": {
+                        "state": "Enabled"
+                    }
                 }
-            }
-        },
-        {
-            "condition": "[parameters('aadEnabled')]",
-            "type": "Microsoft.Resources/deployments",
-            "apiVersion": "2019-08-01",
-            "name": "[concat('addAdmins-', parameters('guid'))]",
-            "dependsOn": [
-                "[concat('Microsoft.DBforMySQL/flexibleServers/', parameters('serverName'))]"
-            ],
-            "properties": {
-                "mode": "Incremental",
-                "template": {
-                    "$schema": "http://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-                    "contentVersion": "1.0.0.0",
-                    "resources": [
-                        {
-                            "type": "Microsoft.DBforMySQL/flexibleServers/administrators",
-                            "name": "[concat(parameters('serverName'),'/ActiveDirectory')]",
-                            "apiVersion": "[variables('api')]",
-                            "properties": {
-                                "administratorType": "[parameters('aadData').administratorType]",
-                                "identityResourceId": "[parameters('aadData').identityResourceId]",
-                                "login": "[parameters('aadData').login]",
-                                "sid": "[parameters('aadData').sid]",
-                                "tenantId": "[parameters('aadData').tenantId]"
-                            }
-                        }
-                    ]
-                }
-            }
-        },
-        {
-            "condition": "[and(greater(length(variables('serverParameters')), 0), parameters('aadEnabled'))]",
-            "type": "Microsoft.Resources/deployments",
-            "apiVersion": "2019-08-01",
-            "copy": {
-                "count": "[if(greater(length(variables('serverParameters')), 0), length(variables('serverParameters')), 1)]",
-                "mode": "serial",
-                "name": "serverParametersIterator"
-            },
-            "dependsOn": [
-                "[concat('Microsoft.DBforMySQL/flexibleServers/', parameters('serverName'))]",
-                "[concat('Microsoft.Resources/deployments/addAdmins-', parameters('guid'))]"
-            ],
-            "name": "[concat('serverParameters-', copyIndex(), '-', parameters('guid'))]",
-            "properties": {
-                "mode": "Incremental",
-                "template": {
-                    "$schema": "http://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-                    "contentVersion": "1.0.0.0",
-                    "resources": [
-                        {
-                            "type": "Microsoft.DBforMySQL/flexibleServers/configurations",
-                            "name": "[concat(parameters('serverName'),'/',variables('serverParameters')[copyIndex()].name)]",
-                            "apiVersion": "[variables('api')]",
-                            "properties": {
-                                "value": "[variables('serverParameters')[copyIndex()].value]",
-                                "source": "[variables('serverParameters')[copyIndex()].source]"
-                            }
-                        }
-                    ]
-                }
-            }
+            ]
         }
     ]
 }
