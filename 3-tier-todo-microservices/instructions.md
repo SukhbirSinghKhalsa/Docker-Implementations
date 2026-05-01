@@ -5,6 +5,7 @@
 1. GitHub CLI installed  
 To check if it is already installed:
 ```bash
+
 git --version
 ```
 
@@ -15,6 +16,7 @@ Alternatively, you can use:
 
 To check if Docker is installed:
 ```bash
+
 docker --version
 ```
 
@@ -89,3 +91,36 @@ https://github.com/SukhbirSinghKhalsa/Docker-Implementations/blob/main/3-tier-to
 
 <img width="1905" height="823" alt="image" src="https://github.com/user-attachments/assets/37c3574a-f08a-4170-bb9d-321514988afc" />
 
+
+### 6 create 4 docker images from given folders
+
+#### Build Frontend Image
+```bash
+cd frontend
+docker build -t frontend-image .
+docker run -d -p 5173:5173 frontend-image
+```
+
+#### Build User Service Image
+```bash
+cd user-service
+docker build -t user-service-image .
+docker run -d -p 8002:8002 user-service-image
+```
+
+#### Build Gateway Service Image
+```bash
+cd gateway-service
+docker build -t gateway-service-image .
+# Tell the gateway where the other services are running
+docker run -d -p 8000:8000 -e TASK_SERVICE_URL="http://task-service:8001"  -e USER_SERVICE_URL="http://user-service:8002"  gateway-service-image
+```
+
+#### Build Task Service Image
+- chanage DATABASE_URL before running it
+```bash
+cd task-service
+docker build -t task-service-image .
+# Pass your MySQL connection string at runtime
+docker run -d -p 8001:8001 --env-file .env task-service-image
+```

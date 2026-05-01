@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import os
 import logging
+import json
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="API Gateway")
@@ -15,7 +16,7 @@ USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://localhost:8002")
 async def forward_request(method: str, url: str, body: bytes):
     async with httpx.AsyncClient() as client:
         try:
-            req = client.build_request(method, url, content=body)
+            req = client.build_request(method, url, json=json.loads(body.decode()) if body else None)
             response = await client.send(req)
             return Response(content=response.content, status_code=response.status_code)
         except httpx.RequestError as e:
@@ -25,12 +26,12 @@ async def forward_request(method: str, url: str, body: bytes):
 async def route_tasks(path: str, request: Request):
     body = await request.body()
     url = f"{TASK_SERVICE_URL}/tasks/{path}"
-    if url.endswith("/"): url = url[:-1]
+    # if url.endswith("/"): url = url[:-1]
     return await forward_request(request.method, url, body)
 
 @app.api_route("/api/users/{path:path}", methods=["GET", "POST"])
 async def route_users(path: str, request: Request):
     body = await request.body()
     url = f"{USER_SERVICE_URL}/users/{path}"
-    if url.endswith("/"): url = url[:-1]
+    # if url.endswith("/"): url = url[:-1]
     return await forward_request(request.method, url, body)
