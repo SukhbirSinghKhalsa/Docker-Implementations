@@ -45,7 +45,7 @@ Alternatively, if you already have a MySQL database and its connection string, y
 ### 1. Creating the SQL Server and Database in Azure Cloud
 
 - Login to Azure Portal  
-- Search: **Azure Database for MySQL Servers**  
+- Search: **SQL Server**  
 - Click on **Create New**  
 
 ---
@@ -56,11 +56,9 @@ Provide the following details:
 
 - Resource Group  
 - Server Name  
-- Region  
-- MySQL Version  
-- Workload Type  
-- Availability Zone  
-- High Availability  
+- Region   
+
+<img width="1849" height="786" alt="image" src="https://github.com/user-attachments/assets/39f707e1-1f3b-4642-952e-b0fae7b34856" />
 
 ---
 
@@ -69,282 +67,25 @@ Provide the following details:
 - Select: **MySQL Authentication Only**  
 - Enter:
   - Admin Login Name  
-  - Password  
+  - Password
+  
+<img width="1704" height="540" alt="image" src="https://github.com/user-attachments/assets/78757304-313d-46ac-a174-f25cf5b45373" />
 
 ⚠️ Keep the admin login name and password stored safely.  
 It will be needed later in the connection string for the backend.
 
+- Connection string from MySQL server will be used in backend  
+- Make sure database is accessible (check firewall settings in Azure)  
 ---
 
 ### 4. ARM Template (For Reference)
 
 You can also use ARM Template for automating the MySQL server creation.
 
-Refer to Azure ARM Template documentation for more details.
+Refer to Azure ARM Template documentation for more details.   
+https://github.com/SukhbirSinghKhalsa/Docker-Implementations/blob/main/3-tier-todo-microservices/arm_template.md   
 
-- Connection string from MySQL server will be used in backend  
-- Make sure database is accessible (check firewall settings in Azure)  
+### 5. SQL Server
 
-``` bash
-{
-    "$schema": "http://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-    "contentVersion": "1.0.0.0",
-    "parameters": {
-        "apiVersion": {
-            "type": "string",
-            "defaultValue": "2021-05-01"
-        },
-        "administratorLogin": {
-            "type": "string"
-        },
-        "administratorLoginPassword": {
-            "type": "securestring"
-        },
-        "location": {
-            "type": "string"
-        },
-        "serverName": {
-            "type": "string"
-        },
-        "serverEdition": {
-            "type": "string"
-        },
-        "vCores": {
-            "type": "int",
-            "defaultValue": 4
-        },
-        "storageSizeGB": {
-            "type": "int"
-        },
-        "haEnabled": {
-            "type": "string",
-            "defaultValue": "Disabled"
-        },
-        "availabilityZone": {
-            "type": "string",
-            "defaultValue": ""
-        },
-        "standbyAvailabilityZone": {
-            "type": "string"
-        },
-        "version": {
-            "type": "string"
-        },
-        "tags": {
-            "type": "object",
-            "defaultValue": {}
-        },
-        "firewallRules": {
-            "type": "object",
-            "defaultValue": {}
-        },
-        "backupRetentionDays": {
-            "type": "int"
-        },
-        "geoRedundantBackup": {
-            "type": "string"
-        },
-        "vmName": {
-            "type": "string",
-            "defaultValue": "Standard_B1ms"
-        },
-        "storageIops": {
-            "type": "int"
-        },
-        "storageAutogrow": {
-            "type": "string",
-            "defaultValue": "Enabled"
-        },
-        "autoIoScaling": {
-            "type": "string",
-            "defaultValue": "Disabled"
-        },
-        "identityData": {
-            "type": "object",
-            "defaultValue": {}
-        },
-        "dataEncryptionData": {
-            "type": "object",
-            "defaultValue": {}
-        },
-        "serverParameters": {
-            "type": "array",
-            "defaultValue": []
-        },
-        "aadEnabled": {
-            "type": "bool",
-            "defaultValue": false
-        },
-        "aadData": {
-            "type": "object",
-            "defaultValue": {}
-        },
-        "guid": {
-            "type": "string",
-            "defaultValue": "[newGuid()]"
-        },
-        "network": {
-            "type": "object",
-            "defaultValue": {}
-        },
-        "firewallRulesAPIVersion": {
-            "type": "string",
-            "defaultValue": "2022-01-01"
-        },
-        "acceleratedLogs": {
-            "type": "string",
-            "defaultValue": "Disabled"
-        },
-        "databasePort": {
-            "type": "int",
-            "defaultValue": 3306
-        },
-        "lowerCaseTableNames": {
-            "type": "int",
-            "defaultValue": 1
-        }
-    },
-    "variables": {
-        "api": "[parameters('apiVersion')]",
-        "firewallRules": "[parameters('firewallRules').rules]",
-        "serverParameters": "[parameters('serverParameters')]"
-    },
-    "resources": [
-        {
-            "apiVersion": "[variables('api')]",
-            "location": "[parameters('location')]",
-            "name": "[parameters('serverName')]",
-            "identity": "[if(empty(parameters('identityData')), json('null'), parameters('identityData'))]",
-            "properties": {
-                "createMode": "Default",
-                "version": "[parameters('version')]",
-                "administratorLogin": "[parameters('administratorLogin')]",
-                "administratorLoginPassword": "[parameters('administratorLoginPassword')]",
-                "Network": "[if(empty(parameters('network')), json('null'), parameters('network'))]",
-                "Storage": {
-                    "StorageSizeGB": "[parameters('storageSizeGB')]",
-                    "Iops": "[parameters('storageIops')]",
-                    "Autogrow": "[parameters('storageAutogrow')]",
-                    "AutoIoScaling": "[parameters('autoIoScaling')]",
-                    "LogOnDisk": "[parameters('acceleratedLogs')]"
-                },
-                "Backup": {
-                    "backupRetentionDays": "[parameters('backupRetentionDays')]",
-                    "geoRedundantBackup": "[parameters('geoRedundantBackup')]"
-                },
-                "availabilityZone": "[parameters('availabilityZone')]",
-                "highAvailability": {
-                    "mode": "[parameters('haEnabled')]",
-                    "standbyAvailabilityZone": "[parameters('standbyAvailabilityZone')]"
-                },
-                "dataencryption": "[if(empty(parameters('dataEncryptionData')), json('null'), parameters('dataEncryptionData'))]",
-                "databasePort": "[parameters('databasePort')]",
-                "lowerCaseTableNames": "[parameters('lowerCaseTableNames')]"
-            },
-            "sku": {
-                "name": "[parameters('vmName')]",
-                "tier": "[parameters('serverEdition')]",
-                "capacity": "[parameters('vCores')]"
-            },
-            "tags": "[parameters('tags')]",
-            "type": "Microsoft.DBforMySQL/flexibleServers"
-        },
-        {
-            "condition": "[greater(length(variables('firewallRules')), 0)]",
-            "type": "Microsoft.Resources/deployments",
-            "apiVersion": "2019-08-01",
-            "name": "[concat('firewallRules-', parameters('guid'), '-', copyIndex())]",
-            "copy": {
-                "count": "[if(greater(length(variables('firewallRules')), 0), length(variables('firewallRules')), 1)]",
-                "mode": "Serial",
-                "name": "firewallRulesIterator"
-            },
-            "dependsOn": [
-                "[concat('Microsoft.DBforMySQL/flexibleServers/', parameters('serverName'))]",
-                "[concat('Microsoft.Resources/deployments/addAdmins-', parameters('guid'))]"
-            ],
-            "properties": {
-                "mode": "Incremental",
-                "template": {
-                    "$schema": "http://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-                    "contentVersion": "1.0.0.0",
-                    "resources": [
-                        {
-                            "type": "Microsoft.DBforMySQL/flexibleServers/firewallRules",
-                            "name": "[concat(parameters('serverName'),'/',variables('firewallRules')[copyIndex()].name)]",
-                            "apiVersion": "[parameters('firewallRulesAPIVersion')]",
-                            "properties": {
-                                "StartIpAddress": "[variables('firewallRules')[copyIndex()].startIPAddress]",
-                                "EndIpAddress": "[variables('firewallRules')[copyIndex()].endIPAddress]"
-                            }
-                        }
-                    ]
-                }
-            }
-        },
-        {
-            "condition": "[parameters('aadEnabled')]",
-            "type": "Microsoft.Resources/deployments",
-            "apiVersion": "2019-08-01",
-            "name": "[concat('addAdmins-', parameters('guid'))]",
-            "dependsOn": [
-                "[concat('Microsoft.DBforMySQL/flexibleServers/', parameters('serverName'))]"
-            ],
-            "properties": {
-                "mode": "Incremental",
-                "template": {
-                    "$schema": "http://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-                    "contentVersion": "1.0.0.0",
-                    "resources": [
-                        {
-                            "type": "Microsoft.DBforMySQL/flexibleServers/administrators",
-                            "name": "[concat(parameters('serverName'),'/ActiveDirectory')]",
-                            "apiVersion": "[variables('api')]",
-                            "properties": {
-                                "administratorType": "[parameters('aadData').administratorType]",
-                                "identityResourceId": "[parameters('aadData').identityResourceId]",
-                                "login": "[parameters('aadData').login]",
-                                "sid": "[parameters('aadData').sid]",
-                                "tenantId": "[parameters('aadData').tenantId]"
-                            }
-                        }
-                    ]
-                }
-            }
-        },
-        {
-            "condition": "[and(greater(length(variables('serverParameters')), 0), parameters('aadEnabled'))]",
-            "type": "Microsoft.Resources/deployments",
-            "apiVersion": "2019-08-01",
-            "copy": {
-                "count": "[if(greater(length(variables('serverParameters')), 0), length(variables('serverParameters')), 1)]",
-                "mode": "serial",
-                "name": "serverParametersIterator"
-            },
-            "dependsOn": [
-                "[concat('Microsoft.DBforMySQL/flexibleServers/', parameters('serverName'))]",
-                "[concat('Microsoft.Resources/deployments/addAdmins-', parameters('guid'))]"
-            ],
-            "name": "[concat('serverParameters-', copyIndex(), '-', parameters('guid'))]",
-            "properties": {
-                "mode": "Incremental",
-                "template": {
-                    "$schema": "http://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-                    "contentVersion": "1.0.0.0",
-                    "resources": [
-                        {
-                            "type": "Microsoft.DBforMySQL/flexibleServers/configurations",
-                            "name": "[concat(parameters('serverName'),'/',variables('serverParameters')[copyIndex()].name)]",
-                            "apiVersion": "[variables('api')]",
-                            "properties": {
-                                "value": "[variables('serverParameters')[copyIndex()].value]",
-                                "source": "[variables('serverParameters')[copyIndex()].source]"
-                            }
-                        }
-                    ]
-                }
-            }
-        }
-    ]
-}
-```
+<img width="1905" height="823" alt="image" src="https://github.com/user-attachments/assets/37c3574a-f08a-4170-bb9d-321514988afc" />
+
