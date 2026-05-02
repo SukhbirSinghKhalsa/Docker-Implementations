@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=todo_db
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -ppassword || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  task-service:
+    build: ./task-service
+    environment:
+      - DATABASE_URL=mysql+pymysql://root:password@db:3306/todo_db?ssl_disabled=true
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8001:8001"
+
+  user-service:
+    build: ./user-service
+    ports:
+      - "8002:8002"
+
+  gateway-service:
+    build: ./gateway-service
+    environment:
+      - TASK_SERVICE_URL=http://task-service:8001
+      - USER_SERVICE_URL=http://user-service:8002
+    depends_on:
+      - task-service
+      - user-service
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    environment:
+      - VITE_GATEWAY_URL=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+    ports:
+      - "5173:5173"
+    depends_on:
+      - gateway-service
+
+volumes:
+  db_data:
