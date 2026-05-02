@@ -50,4 +50,24 @@ All the docker related projects will be added here
         │       
         └───routes
                 user_routes.py
+
+```
+
+## Quick start — Run the whole 3-tier app with one command
+
+To build and start the full application (MySQL, task-service, user-service, gateway, and frontend) in the `3-tier-todo-microservices` folder:
+
+```bash
+cd 3-tier-todo-microservices
+docker compose up --build
+```
+
+After startup you can check:
+- Frontend: http://localhost:5173
+- API gateway: http://localhost:8000 (gateway forwards to task/user services)
+
+To stop and remove containers and the database volume:
+
+```bash
+docker compose down -v
 ```
